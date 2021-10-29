@@ -1,18 +1,9 @@
 
-def add(a, b):
-    return Coordinate(a.x + b.x, a.y + b.y)
- ​
-def sub(a, b):
-    return Coordinate(a.x - b.x, a.y - b.y)
+list1=[1,3,2,4]
+list2=[42,231,5,4]
 
-class Coordinate(object):
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-    def __repr__(self):
-        return "Coord: " + str(self.__dict__)
- 
- 
-
- 
- 
+data = zip(list1, list2)
+data = sorted(data)
+list1, list2 = map(lambda t: list(t), zip(*data))
+print(list1) 
+print(list2)

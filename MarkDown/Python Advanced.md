@@ -1256,3 +1256,429 @@ print(inspect.getmembers(str))
 
 还有好多个其他方法也能有助于自省。如果你愿意，你可以去探索它们。
 
+
+
+# `else`从句
+
+`for`循环还有一个`else`从句，我们大多数人并不熟悉。这个`else`从句会在循环正常结束时执行。这意味着，循环没有遇到任何`break`. 一旦你掌握了何时何地使用它，它真的会非常有用。我自己对它真是相见恨晚。
+
+有个常见的构造是跑一个循环，并查找一个元素。如果这个元素被找到了，我们使用`break`来中断这个循环。有两个场景会让循环停下来。
+
+- 第一个是当一个元素被找到，`break`被触发。
+- 第二个场景是循环结束。
+
+现在我们也许想知道其中哪一个，才是导致循环完成的原因。一个方法是先设置一个标记，然后在循环结束时打上标记。另一个是使用`else`从句。
+
+这就是`for/else`循环的基本结构：
+
+```python
+for item in container:
+    if search_something(item):
+        # Found it!
+        process(item)
+        break
+else:
+    # Didn't find anything..
+    not_found_in_container()
+```
+
+考虑下这个简单的案例，它是我从官方文档里拿来的：
+
+```python
+for n in range(2, 10):
+    for x in range(2, n):
+        if n % x == 0:
+            print(n, 'equals', x, '*', n / x)
+            break
+```
+
+它会找出2到10之间的数字的因子。现在是趣味环节了。我们可以加上一个附加的else语句块，来抓住质数，并且告诉我们：
+
+```python
+for n in range(2, 10):
+    for x in range(2, n):
+        if n % x == 0:
+            print(n, 'equals', x, '*', n / x)
+            break
+    else:
+        # loop fell through without finding a factor
+        print(n, 'is a prime number')
+```
+
+
+
+
+
+
+
+# 使用C扩展
+
+CPython还为开发者实现了一个有趣的特性，使用Python可以轻松调用C代码
+
+开发者有三种方法可以在自己的Python代码中来调用C编写的函数-`ctypes`，`SWIG`，`Python/C API`。每种方式也都有各自的利弊。
+
+首先，我们要明确为什么要在Python中调用C？
+
+常见原因如下：
+
+- 你要提升代码的运行速度，而且你知道C要比Python快50倍以上
+- C语言中有很多传统类库，而且有些正是你想要的，但你又不想用Python去重写它们
+- 想对从内存到文件接口这样的底层资源进行访问
+- 不需要理由，就是想这样做
+
+# Python/C API
+
+[Python/C API](https://docs.python.org/2/c-api/)可能是被最广泛使用的方法。它不仅简单，而且可以在C代码中操作你的Python对象。
+
+这种方法需要以特定的方式来编写C代码以供Python去调用它。所有的Python对象都被表示为一种叫做PyObject的结构体，并且`Python.h`头文件中提供了各种操作它的函数。例如，如果PyObject表示为PyListType(列表类型)时，那么我们便可以使用`PyList_Size()`函数来获取该结构的长度，类似Python中的`len(list)`函数。大部分对Python原生对象的基础函数和操作在`Python.h`头文件中都能找到。
+
+示例
+
+编写一个C扩展，添加所有元素到一个Python列表(所有元素都是数字)
+
+来看一下我们要实现的效果，这里演示了用Python调用C扩展的代码
+
+```Python
+#Though it looks like an ordinary python import, the addList module is implemented in C
+import addList
+
+l = [1,2,3,4,5]
+print "Sum of List - " + str(l) + " = " +  str(addList.add(l))
+```
+
+上面的代码和普通的Python文件并没有什么分别，导入并使用了另一个叫做`addList`的Python模块。唯一差别就是这个模块并不是用Python编写的，而是C。
+
+接下来我们看看如何用C编写`addList`模块，这可能看起来有点让人难以接受，但是一旦你了解了这之中的各种组成，你就可以一往无前了。
+
+```C
+//Python.h has all the required function definitions to manipulate the Python objects
+#include <Python.h>
+
+//This is the function that is called from your python code
+static PyObject* addList_add(PyObject* self, PyObject* args){
+
+    PyObject * listObj;
+
+    //The input arguments come as a tuple, we parse the args to get the various variables
+    //In this case it's only one list variable, which will now be referenced by listObj
+    if (! PyArg_ParseTuple( args, "O", &listObj ))
+        return NULL;
+
+    //length of the list
+    long length = PyList_Size(listObj);
+
+    //iterate over all the elements
+    int i, sum =0;
+    for (i = 0; i < length; i++) {
+        //get an element out of the list - the element is also a python objects
+        PyObject* temp = PyList_GetItem(listObj, i);
+        //we know that object represents an integer - so convert it into C long
+        long elem = PyInt_AsLong(temp);
+        sum += elem;
+    }
+
+    //value returned back to python code - another python object
+    //build value here converts the C long to a python integer
+    return Py_BuildValue("i", sum);
+
+}
+
+//This is the docstring that corresponds to our 'add' function.
+static char addList_docs[] =
+"add(  ): add all elements of the list\n";
+
+/* This table contains the relavent info mapping -
+   <function-name in python module>, <actual-function>,
+   <type-of-args the function expects>, <docstring associated with the function>
+ */
+static PyMethodDef addList_funcs[] = {
+    {"add", (PyCFunction)addList_add, METH_VARARGS, addList_docs},
+    {NULL, NULL, 0, NULL}
+
+};
+
+/*
+   addList is the module name, and this is the initialization block of the module.
+   <desired module name>, <the-info-table>, <module's-docstring>
+ */
+PyMODINIT_FUNC initaddList(void){
+    Py_InitModule3("addList", addList_funcs,
+            "Add all ze lists");
+
+}
+```
+
+逐步解释
+
+- `Python.h`头文件中包含了所有需要的类型(Python对象类型的表示)和函数定义(对Python对象的操作)
+- 接下来我们编写将要在Python调用的函数, 函数传统的命名方式由{模块名}_{函数名}组成，所以我们将其命名为`addList_add`
+- 然后填写想在模块内实现函数的相关信息表，每行一个函数，以空行作为结束
+- 最后的模块初始化块签名为`PyMODINIT_FUNC init{模块名}`。
+
+函数`addList_add`接受的参数类型为PyObject类型结构(同时也表示为元组类型，因为Python中万物皆为对象，所以我们先用PyObject来定义)。传入的参数则通过`PyArg_ParseTuple()`来解析。第一个参数是被解析的参数变量。第二个参数是一个字符串，告诉我们如何去解析元组中每一个元素。字符串的第n个字母正是代表着元组中第n个参数的类型。例如，"i"代表整形，"s"代表字符串类型, "O"则代表一个Python对象。接下来的参数都是你想要通过`PyArg_ParseTuple()`函数解析并保存的元素。这样参数的数量和模块中函数期待得到的参数数量就可以保持一致，并保证了位置的完整性。例如，我们想传入一个字符串，一个整数和一个Python列表，可以这样去写
+
+```C
+int n;
+char *s;
+PyObject* list;
+PyArg_ParseTuple(args, "siO", &n, &s, &list);
+```
+
+在这种情况下，我们只需要提取一个列表对象，并将它存储在`listObj`变量中。然后用列表对象中的`PyList_Size()`函数来获取它的长度。就像Python中调用`len(list)`。
+
+现在我们通过循环列表，使用`PyList_GetItem(list, index)`函数来获取每个元素。这将返回一个`PyObject*`对象。既然Python对象也能表示`PyIntType`，我们只要使用`PyInt_AsLong(PyObj *)`函数便可获得我们所需要的值。我们对每个元素都这样处理，最后再得到它们的总和。
+
+总和将被转化为一个Python对象并通过`Py_BuildValue()`返回给Python代码，这里的i表示我们要返回一个Python整形对象。
+
+现在我们已经编写完C模块了。将下列代码保存为`setup.py`
+
+```Python
+#build the modules
+
+from distutils.core import setup, Extension
+
+setup(name='addList', version='1.0',  \
+      ext_modules=[Extension('addList', ['adder.c'])])
+```
+
+并且运行
+
+```Shell
+python setup.py install
+```
+
+现在应该已经将我们的C文件编译安装到我们的Python模块中了。
+
+在一番辛苦后，让我们来验证下我们的模块是否有效
+
+```Python
+#module that talks to the C code
+import addList
+
+l = [1,2,3,4,5]
+print "Sum of List - " + str(l) + " = " +  str(addList.add(l))
+```
+
+输出结果如下
+
+```
+Sum of List - [1, 2, 3, 4, 5] = 15
+```
+
+如你所见，我们已经使用Python.h API成功开发出了我们第一个Python C扩展。这种方法看似复杂，但你一旦习惯，它将变的非常有效。
+
+Python调用C代码的另一种方式便是使用[Cython](http://cython.org/)让Python编译的更快。但是Cython和传统的Python比起来可以将它理解为另一种语言，所以我们就不在这里过多描述了。
+
+
+
+
+
+# `open`函数
+
+[open](http://docs.python.org/dev/library/functions.html#open) 函数可以打开一个文件。超级简单吧？大多数时候，我们看到它这样被使用：
+
+```python
+f = open('photo.jpg', 'r+')
+jpgdata = f.read()
+f.close()
+```
+
+我现在写这篇文章的原因，是大部分时间我看到`open`被这样使用。有**三个**错误存在于上面的代码中。你能把它们全指出来吗？如不能，请读下去。在这篇文章的结尾，你会知道上面的代码错在哪里，而且，更重要的是，你能在自己的代码里避免这些错误。现在我们从基础开始：
+
+`open`的返回值是一个文件句柄，从操作系统托付给你的Python程序。一旦你处理完文件，你会想要归还这个文件句柄，只有这样你的程序不会超出一次能打开的文件句柄的数量上限。
+
+显式地调用`close`关闭了这个文件句柄，但前提是只有在read成功的情况下。如果有任意异常正好在`f = open(...)`之后产生，`f.close()`将不会被调用（取决于Python解释器的做法，文件句柄可能还是会被归还，但那是另外的话题了）。为了确保不管异常是否触发，文件都能关闭，我们将其包裹成一个`with`语句:
+
+```python
+with open('photo.jpg', 'r+') as f:
+    jpgdata = f.read()
+```
+
+`open`的第一个参数是文件名。第二个(`mode` 打开模式)决定了这个文件如何被打开。
+
+- 如果你想读取文件，传入`r`
+- 如果你想读取并写入文件，传入`r+`
+- 如果你想覆盖写入文件，传入`w`
+- 如果你想在文件末尾附加内容，传入`a`
+
+虽然有若干个其他的有效的`mode`字符串，但有可能你将永远不会使用它们。`mode`很重要，不仅因为它改变了行为，而且它可能导致权限错误。举个例子，我们要是在一个写保护的目录里打开一个jpg文件， `open(.., 'r+')`就失败了。`mode`可能包含一个扩展字符；让我们还可以以二进制方式打开文件(你将得到字节串)或者文本模式(字符串)
+
+一般来说，如果文件格式是由人写的，那么它更可能是文本模式。jpg图像文件一般不是人写的（而且其实不是人直接可读的），因此你应该以二进制模式来打开它们，方法是在`mode`字符串后加一个`b`(你可以看看开头的例子里，正确的方式应该是`rb`)。
+如果你以文本模式打开一些东西（比如，加一个`t`,或者就用`r/r+/w/a`），你还必须知道要使用哪种编码。对于计算机来说，所有的文件都是字节，而不是字符。
+
+可惜，在Pyhon 2.x版本里，`open`不支持显示地指定编码。然而，[io.open](http://docs.python.org/2/library/io.html#io.open)函数在Python 2.x中和3.x(其中它是`open`的别名)中都有提供，它能做正确的事。你可以传入`encoding`这个关键字参数来传入编码。
+如果你不传入任意编码，一个系统 - 以及Python -指定的默认选项将被选中。你也许被诱惑去依赖这个默认选项，但这个默认选项经常是错误的，或者默认编码实际上不能表达文件里的所有字符（这将经常发生在Python 2.x和/或Windows）。
+所以去挑选一个编码吧。`utf-8`是一个非常好的编码。当你写入一个文件，你可以选一个你喜欢的编码（或者最终读你文件的程序所喜欢的编码）。
+
+那你怎么找出正在读的文件是用哪种编码写的呢？好吧，不幸的是，并没有一个十分简单的方式来检测编码。在不同的编码中，同样的字节可以表示不同，但同样有效的字符。因此，你必须依赖一个元数据（比如，在HTTP头信息里）来找出编码。越来越多的是，文件格式将编码定义成`UTF-8`。
+
+有了这些基础知识，我们来写一个程序，读取一个文件，检测它是否是JPG（提示：这些文件头部以字节`FF D8`开始），把对输入文件的描述写入一个文本文件。
+
+```python
+import io
+
+with open('photo.jpg', 'rb') as inf:
+    jpgdata = inf.read()
+
+if jpgdata.startswith(b'\xff\xd8'):
+    text = u'This is a JPEG file (%d bytes long)\n'
+else:
+    text = u'This is a random file (%d bytes long)\n'
+
+with io.open('summary.txt', 'w', encoding='utf-8') as outf:
+    outf.write(text % len(jpgdata))
+```
+
+我敢肯定，现在你会正确地使用`open`啦！
+
+
+
+
+
+# 22. 目标Python2+3
+
+很多时候你可能希望你开发的程序能够同时兼容Python2+和Python3+。
+
+试想你有一个非常出名的Python模块被很多开发者使用着，但并不是所有人都只使用Python2或者Python3。这时候你有两个办法。第一个办法是开发两个模块，针对Python2一个，针对Python3一个。还有一个办法就是调整你现在的代码使其同时兼容Python2和Python3。
+
+本节中，我将介绍一些技巧，让你的脚本同时兼容Python2和Python3。
+
+**Future模块导入**
+
+第一种也是最重要的方法，就是导入`__future__`模块。它可以帮你在Python2中导入Python3的功能。这有一组例子：
+
+上下文管理器是Python2.6+引入的新特性，如果你想在Python2.5中使用它可以这样做：
+
+```python
+from __future__ import with_statement
+```
+
+在Python3中`print`已经变为一个函数。如果你想在Python2中使用它可以通过`__future__`导入：
+
+```python
+print
+# Output:
+
+from __future__ import print_function
+print(print)
+# Output: <built-in function print>
+```
+
+**模块重命名**
+
+首先，告诉我你是如何在你的脚本中导入模块的。大多时候我们会这样做：
+
+```python
+import foo 
+# or
+from foo import bar
+```
+
+你知道么，其实你也可以这样做：
+
+```python
+import foo as foo
+```
+
+这样做可以起到和上面代码同样的功能，但最重要的是它能让你的脚本同时兼容Python2和Python3。现在我们来看下面的代码：
+
+```python
+try:
+    import urllib.request as urllib_request  # for Python 3
+except ImportError:
+    import urllib2 as urllib_request  # for Python 2
+```
+
+让我来稍微解释一下上面的代码。
+我们将模块导入代码包装在`try/except`语句中。我们是这样做是因为在Python 2中并没有`urllib.request`模块。这将引起一个`ImportError`异常。而在Python2中`urllib.request`的功能则是由`urllib2`提供的。所以,当我们试图在Python2中导入`urllib.request`模块的时候，一旦我们捕获到`ImportError`我们将通过导入`urllib2`模块来代替它。
+
+最后，你要了解`as`关键字的作用。它将导入的模块映射到`urllib.request`，所以我们通过`urllib_request`这个别名就可以使用`urllib2`中的所有类和方法了。
+
+**过期的Python2内置功能**
+
+另一个需要了解的事情就是Python2中有12个内置功能在Python3中已经被移除了。要确保在Python2代码中不要出现这些功能来保证对Python3的兼容。这有一个强制让你放弃12内置功能的方法：
+
+```python
+from future.builtins.disabled import *
+```
+
+现在，只要你尝试在Python3中使用这些被遗弃的模块时，就会抛出一个`NameError`异常如下：
+
+```python
+from future.builtins.disabled import *
+
+apply()
+# Output: NameError: obsolete Python 2 builtin apply is disabled
+```
+
+**标准库向下兼容的外部支持**
+
+有一些包在非官方的支持下为Python2提供了Python3的功能。例如，我们有：
+
+- enum `pip install enum34`
+- singledispatch `pip install singledispatch`
+- pathlib `pip install pathlib`
+
+想更多了解，在Python文档中有一个[全面的指南](https://docs.python.org/3/howto/pyporting.html)可以帮助你让你的代码同时兼容Python2和Python3。
+
+
+
+
+
+# 23. 协程
+
+Python中的协程和生成器很相似但又稍有不同。主要区别在于：
+
+- 生成器是数据的生产者
+- 协程则是数据的消费者
+
+首先我们先来回顾下生成器的创建过程。我们可以这样去创建一个生成器:
+
+```python
+    def fib():
+        a, b = 0, 1
+        while True:
+            yield a
+            a, b = b, a+b
+```
+
+然后我们经常在`for`循环中这样使用它:
+
+```python
+    for i in fib():
+        print i
+```
+
+这样做不仅快而且不会给内存带来压力，因为我们所需要的值都是动态生成的而不是将他们存储在一个列表中。更概括的说如果现在我们在上面的例子中使用`yield`便可获得了一个协程。协程会消费掉发送给它的值。Python实现的`grep`就是个很好的例子：
+
+```python
+    def grep(pattern):
+        print("Searching for", pattern)
+        while True:
+            line = (yield)
+            if pattern in line:
+                print(line)
+```
+
+等等！`yield`返回了什么？啊哈，我们已经把它变成了一个协程。它将不再包含任何初始值，相反要从外部传值给它。我们可以通过`send()`方法向它传值。这有个例子：
+
+```python
+    search = grep('coroutine')
+    next(search)
+    #output: Searching for coroutine
+    search.send("I love you")
+    search.send("Don't you love me?")
+    search.send("I love coroutine instead!")
+    #output: I love coroutine instead!
+```
+
+发送的值会被`yield`接收。我们为什么要运行`next()`方法呢？这样做正是为了启动一个协程。就像协程中包含的生成器并不是立刻执行，而是通过`next()`方法来响应`send()`方法。因此，你必须通过`next()`方法来执行`yield`表达式。
+
+我们可以通过调用`close()`方法来关闭一个协程。像这样：
+
+```python
+    search = grep('coroutine')
+    search.close()
+```
+
+更多协程相关知识的学习大家可以参考David Beazley的这份[精彩演讲](http://www.dabeaz.com/coroutines/Coroutines.pdf)。
