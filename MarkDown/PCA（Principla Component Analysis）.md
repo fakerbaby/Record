@@ -34,41 +34,41 @@ PCA通过线性变换将原始数据变换为一组各维度线性无关的表�
 
 这里是上文提到的
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFGxicSfy3meoy0b3y7uJXL2IGwHzf933uFGzL8krCxnNsnRUqsmfQVAibA/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/PCA1.png)
 
 为例，我们用PCA方法将这组二维数据其降到一维。
 
 因为这个矩阵的每行已经是零均值，这里我们直接求协方差矩阵：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFGBEkIvu0R49CX4rQpm71t9TZmtrFdPdibjufEFol11ZyDn3iclC32zMCw/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/PCA2.png)
 
 然后求其特征值和特征向量，具体求解方法不再详述，可以参考相关资料。求解后特征值为：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFGmzLH79UAYffqxj7P5YD8917e8RXmiaoz1sS36qQjSAlY0cgY7DswUpw/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/PCA3.png)
 
 其对应的特征向量分别是：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFG9ibGJXr0q7Kad8dp2Q7u70nV1Zh6ux0Lax2MMG4WEgQStF39RUxJ6oA/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca4.png)
 
 其中对应的特征向量分别是一个通解，c1c1和c2c2可取任意实数。那么标准化后的特征向量为：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFG27otyjAV4p51XV9EztV3ibwzvkJkXZ2nNyWicoFzmvIP8pPxYhmDcmww/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca5.png)
 
 因此我们的矩阵P是：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFG4n5iby9zu5ibf3Ks6iciciaSZoQVwHY8LsDIwkcPOcPI98duBwyibqqTL9Jw/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca6.png)
 
 可以验证协方差矩阵C的对角化：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFGFt82TMu0rpNfk0kFAfxGhxrc5Eu4Dugib9DLaTgJOB6T09q8LJyVWWQ/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca7.png)
 
 最后我们用P的第一行乘以数据矩阵，就得到了降维后的表示：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabky2jXhnzqYC7JdLQBWPVKFGJstBDTdBf2eic4x3bGPyWxHKXYS0W4VvLRc6dflbPVJYsGLMDajWW7A/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca8.png)
 
 降维投影结果如下图：
 
-![Image](https://mmbiz.qpic.cn/mmbiz_png/951TjTgiabkyQPnnP8sxicPCfWP6sZKy4VRoEEMhP4kSiawkYxNicy6iaLBXt3j3OqxENjRbasqJDibXdV4In2zwcwLw/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![Image](../pic/pca9.png)
 
 
 
